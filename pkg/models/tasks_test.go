@@ -1040,3 +1040,262 @@ func Test_getTaskIndexFromSearchString(t *testing.T) {
 		})
 	}
 }
+
+func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
+	t.Run("basic blocking relationship", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create two tasks
+		taskA := &Task{
+			Title:     "Task A",
+			ProjectID: 1,
+			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		}
+		err := taskA.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		taskB := &Task{
+			Title:     "Task B",
+			ProjectID: 1,
+			StartDate: time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
+		}
+		err = taskB.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Create blocking relation: A blocks B
+		rel := &TaskRelation{
+			TaskID:       taskA.ID,
+			OtherTaskID:  taskB.ID,
+			RelationKind: RelationKindBlocking,
+		}
+		err = rel.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Update Task A's end date
+		taskA.EndDate = time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+		err = taskA.Update(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		err = s.Commit()
+		require.NoError(t, err)
+
+		// Check that Task B's start date was updated
+		updatedTaskB, err := GetTaskByIDSimple(s, taskB.ID)
+		require.NoError(t, err)
+		assert.Equal(t, taskA.EndDate, updatedTaskB.StartDate)
+	})
+
+	t.Run("blocked task with duration preservation", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create two tasks
+		taskA := &Task{
+			Title:     "Task A",
+			ProjectID: 1,
+			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		}
+		err := taskA.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		taskB := &Task{
+			Title:     "Task B",
+			ProjectID: 1,
+			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC), // 5 day duration
+		}
+		err = taskB.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		originalDuration := taskB.EndDate.Sub(taskB.StartDate)
+
+		// Create blocking relation: A blocks B
+		rel := &TaskRelation{
+			TaskID:       taskA.ID,
+			OtherTaskID:  taskB.ID,
+			RelationKind: RelationKindBlocking,
+		}
+		err = rel.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Update Task A's end date to Jan 20
+		taskA.EndDate = time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC)
+		err = taskA.Update(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		err = s.Commit()
+		require.NoError(t, err)
+
+		// Check that Task B's dates were updated and duration preserved
+		updatedTaskB, err := GetTaskByIDSimple(s, taskB.ID)
+		require.NoError(t, err)
+		assert.Equal(t, taskA.EndDate, updatedTaskB.StartDate)
+		assert.Equal(t, originalDuration, updatedTaskB.EndDate.Sub(updatedTaskB.StartDate))
+	})
+
+	t.Run("cascading updates", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create three tasks: A blocks B, B blocks C
+		taskA := &Task{
+			Title:     "Task A",
+			ProjectID: 1,
+			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		}
+		err := taskA.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		taskB := &Task{
+			Title:     "Task B",
+			ProjectID: 1,
+			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+		}
+		err = taskB.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		taskC := &Task{
+			Title:     "Task C",
+			ProjectID: 1,
+			StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+		}
+		err = taskC.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Create blocking relations: A blocks B, B blocks C
+		relAB := &TaskRelation{
+			TaskID:       taskA.ID,
+			OtherTaskID:  taskB.ID,
+			RelationKind: RelationKindBlocking,
+		}
+		err = relAB.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		relBC := &TaskRelation{
+			TaskID:       taskB.ID,
+			OtherTaskID:  taskC.ID,
+			RelationKind: RelationKindBlocking,
+		}
+		err = relBC.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Update Task A's end date
+		taskA.EndDate = time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC)
+		err = taskA.Update(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		err = s.Commit()
+		require.NoError(t, err)
+
+		// Check that Task B's dates were updated
+		updatedTaskB, err := GetTaskByIDSimple(s, taskB.ID)
+		require.NoError(t, err)
+		expectedBStart := time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC)
+		expectedBEnd := time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC)
+		assert.Equal(t, expectedBStart, updatedTaskB.StartDate)
+		assert.Equal(t, expectedBEnd, updatedTaskB.EndDate)
+
+		// Check that Task C's start date was also updated (cascading)
+		updatedTaskC, err := GetTaskByIDSimple(s, taskC.ID)
+		require.NoError(t, err)
+		assert.Equal(t, expectedBEnd, updatedTaskC.StartDate)
+	})
+
+	t.Run("no update when end date is zero", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create two tasks
+		taskA := &Task{
+			Title:     "Task A",
+			ProjectID: 1,
+		}
+		err := taskA.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		taskB := &Task{
+			Title:     "Task B",
+			ProjectID: 1,
+			StartDate: time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
+		}
+		err = taskB.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		originalStartDate := taskB.StartDate
+
+		// Create blocking relation: A blocks B
+		rel := &TaskRelation{
+			TaskID:       taskA.ID,
+			OtherTaskID:  taskB.ID,
+			RelationKind: RelationKindBlocking,
+		}
+		err = rel.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Update Task A's title (not end date)
+		taskA.Title = "Task A Updated"
+		err = taskA.Update(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		err = s.Commit()
+		require.NoError(t, err)
+
+		// Check that Task B's start date was NOT updated
+		updatedTaskB, err := GetTaskByIDSimple(s, taskB.ID)
+		require.NoError(t, err)
+		assert.Equal(t, originalStartDate, updatedTaskB.StartDate)
+	})
+
+	t.Run("no update when end date unchanged", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create two tasks
+		taskA := &Task{
+			Title:     "Task A",
+			ProjectID: 1,
+			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		}
+		err := taskA.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		taskB := &Task{
+			Title:     "Task B",
+			ProjectID: 1,
+			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		}
+		err = taskB.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		originalStartDate := taskB.StartDate
+
+		// Create blocking relation: A blocks B
+		rel := &TaskRelation{
+			TaskID:       taskA.ID,
+			OtherTaskID:  taskB.ID,
+			RelationKind: RelationKindBlocking,
+		}
+		err = rel.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Update Task A's title but keep end date same
+		taskA.Title = "Task A Updated"
+		err = taskA.Update(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		err = s.Commit()
+		require.NoError(t, err)
+
+		// Check that Task B's start date was NOT updated
+		updatedTaskB, err := GetTaskByIDSimple(s, taskB.ID)
+		require.NoError(t, err)
+		assert.Equal(t, originalStartDate, updatedTaskB.StartDate)
+	})
+}
