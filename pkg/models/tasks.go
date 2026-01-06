@@ -1318,6 +1318,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	// We also set this here to prevent it being overwritten later on.
 	// t.Labels = ot.Labels
 
+	// Save the old end date before merging for blocked task adjustment
+	oldEndDate := ot.EndDate
+
 	// For whatever reason, xorm dont detect if done is updated, so we need to update this every time by hand
 	// Which is why we merge the actual task struct with the one we got from the db
 	// The user struct overrides values in the actual one.
@@ -1406,7 +1409,101 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		return err
 	}
 
+	// Adjust start dates of blocked tasks if this task's end date changed
+	err = adjustBlockedTasksStartDates(s, a, t, oldEndDate, nil)
+	if err != nil {
+		return err
+	}
+
 	return updateProjectLastUpdated(s, &Project{ID: t.ProjectID})
+}
+
+// adjustBlockedTasksStartDates adjusts the start dates of tasks blocked by the given task.
+// If the blocking task's end date has changed, all blocked tasks will have their start dates
+// updated to match the new end date. If a blocked task has an end date, its duration is preserved.
+// This function handles cascading updates recursively.
+func adjustBlockedTasksStartDates(s *xorm.Session, a web.Auth, blockingTask *Task, oldEndDate time.Time, visitedTasks map[int64]bool) error {
+	// Skip if the end date hasn't changed or is zero
+	if blockingTask.EndDate.IsZero() || blockingTask.EndDate.Equal(oldEndDate) {
+		return nil
+	}
+
+	// Prevent infinite loops by tracking visited tasks
+	if visitedTasks == nil {
+		visitedTasks = make(map[int64]bool)
+	}
+	if visitedTasks[blockingTask.ID] {
+		return nil
+	}
+	visitedTasks[blockingTask.ID] = true
+
+	// Find all tasks that are blocked by this task
+	// We need to find relations where this task is blocking others
+	blockedRelations := []*TaskRelation{}
+	err := s.Where("task_id = ? AND relation_kind = ?", blockingTask.ID, RelationKindBlocking).
+		Find(&blockedRelations)
+	if err != nil {
+		return err
+	}
+
+	if len(blockedRelations) == 0 {
+		return nil
+	}
+
+	// Update each blocked task
+	for _, relation := range blockedRelations {
+		blockedTask, err := GetTaskByIDSimple(s, relation.OtherTaskID)
+		if err != nil {
+			log.Errorf("Could not get blocked task %d: %v", relation.OtherTaskID, err)
+			continue
+		}
+
+		// Calculate the duration if the blocked task has both start and end dates
+		var duration time.Duration
+		hasDuration := false
+		if !blockedTask.StartDate.IsZero() && !blockedTask.EndDate.IsZero() {
+			duration = blockedTask.EndDate.Sub(blockedTask.StartDate)
+			hasDuration = true
+		}
+
+		// Store the old end date for cascading updates
+		oldBlockedEndDate := blockedTask.EndDate
+
+		// Update the start date to match the blocking task's end date
+		blockedTask.StartDate = blockingTask.EndDate
+
+		// If the task had a duration, preserve it by updating the end date
+		if hasDuration {
+			blockedTask.EndDate = blockedTask.StartDate.Add(duration)
+		}
+
+		// Update only the date fields
+		_, err = s.ID(blockedTask.ID).
+			Cols("start_date", "end_date").
+			Update(blockedTask)
+		if err != nil {
+			log.Errorf("Could not update blocked task %d: %v", blockedTask.ID, err)
+			continue
+		}
+
+		// Dispatch event for the updated blocked task
+		doer, _ := user.GetFromAuth(a)
+		err = events.Dispatch(&TaskUpdatedEvent{
+			Task: &blockedTask,
+			Doer: doer,
+		})
+		if err != nil {
+			log.Errorf("Could not dispatch event for blocked task %d: %v", blockedTask.ID, err)
+		}
+
+		// Recursively adjust tasks blocked by this task
+		err = adjustBlockedTasksStartDates(s, a, &blockedTask, oldBlockedEndDate, visitedTasks)
+		if err != nil {
+			log.Errorf("Could not adjust cascading blocked tasks for task %d: %v", blockedTask.ID, err)
+		}
+	}
+
+	return nil
 }
 
 // updateTasks updates multiple tasks with the same payload.
