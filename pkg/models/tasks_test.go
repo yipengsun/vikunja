@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"code.vikunja.io/api/pkg/config"
 	"code.vikunja.io/api/pkg/db"
 	"code.vikunja.io/api/pkg/events"
 	"code.vikunja.io/api/pkg/user"
@@ -1042,6 +1043,8 @@ func Test_getTaskIndexFromSearchString(t *testing.T) {
 }
 
 func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
+	tz := config.GetTimeZone()
+
 	t.Run("basic blocking relationship", func(t *testing.T) {
 		db.LoadAndAssertFixtures(t)
 		s := db.NewSession()
@@ -1051,7 +1054,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskA := &Task{
 			Title:     "Task A",
 			ProjectID: 1,
-			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, tz),
 		}
 		err := taskA.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1059,7 +1062,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskB := &Task{
 			Title:     "Task B",
 			ProjectID: 1,
-			StartDate: time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
+			StartDate: time.Date(2024, 1, 5, 0, 0, 0, 0, tz),
 		}
 		err = taskB.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1074,7 +1077,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update Task A's end date
-		taskA.EndDate = time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+		taskA.EndDate = time.Date(2024, 1, 15, 0, 0, 0, 0, tz)
 		err = taskA.Update(s, &user.User{ID: 1})
 		require.NoError(t, err)
 
@@ -1096,7 +1099,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskA := &Task{
 			Title:     "Task A",
 			ProjectID: 1,
-			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, tz),
 		}
 		err := taskA.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1104,8 +1107,8 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskB := &Task{
 			Title:     "Task B",
 			ProjectID: 1,
-			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
-			EndDate:   time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC), // 5 day duration
+			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, tz),
+			EndDate:   time.Date(2024, 1, 15, 0, 0, 0, 0, tz), // 5 day duration
 		}
 		err = taskB.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1122,7 +1125,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update Task A's end date to Jan 20
-		taskA.EndDate = time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC)
+		taskA.EndDate = time.Date(2024, 1, 20, 0, 0, 0, 0, tz)
 		err = taskA.Update(s, &user.User{ID: 1})
 		require.NoError(t, err)
 
@@ -1145,7 +1148,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskA := &Task{
 			Title:     "Task A",
 			ProjectID: 1,
-			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, tz),
 		}
 		err := taskA.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1153,8 +1156,8 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskB := &Task{
 			Title:     "Task B",
 			ProjectID: 1,
-			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
-			EndDate:   time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, tz),
+			EndDate:   time.Date(2024, 1, 15, 0, 0, 0, 0, tz),
 		}
 		err = taskB.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1162,7 +1165,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskC := &Task{
 			Title:     "Task C",
 			ProjectID: 1,
-			StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			StartDate: time.Date(2024, 1, 15, 0, 0, 0, 0, tz),
 		}
 		err = taskC.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1185,7 +1188,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update Task A's end date
-		taskA.EndDate = time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC)
+		taskA.EndDate = time.Date(2024, 1, 20, 0, 0, 0, 0, tz)
 		err = taskA.Update(s, &user.User{ID: 1})
 		require.NoError(t, err)
 
@@ -1195,8 +1198,8 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		// Check that Task B's dates were updated
 		updatedTaskB, err := GetTaskByIDSimple(s, taskB.ID)
 		require.NoError(t, err)
-		expectedBStart := time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC)
-		expectedBEnd := time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC)
+		expectedBStart := time.Date(2024, 1, 20, 0, 0, 0, 0, tz)
+		expectedBEnd := time.Date(2024, 1, 25, 0, 0, 0, 0, tz)
 		assert.Equal(t, expectedBStart, updatedTaskB.StartDate)
 		assert.Equal(t, expectedBEnd, updatedTaskB.EndDate)
 
@@ -1222,7 +1225,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskB := &Task{
 			Title:     "Task B",
 			ProjectID: 1,
-			StartDate: time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
+			StartDate: time.Date(2024, 1, 5, 0, 0, 0, 0, tz),
 		}
 		err = taskB.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1261,7 +1264,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskA := &Task{
 			Title:     "Task A",
 			ProjectID: 1,
-			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2024, 1, 10, 0, 0, 0, 0, tz),
 		}
 		err := taskA.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)
@@ -1269,7 +1272,7 @@ func TestTask_AdjustBlockedTasksStartDates(t *testing.T) {
 		taskB := &Task{
 			Title:     "Task B",
 			ProjectID: 1,
-			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			StartDate: time.Date(2024, 1, 10, 0, 0, 0, 0, tz),
 		}
 		err = taskB.Create(s, &user.User{ID: 1})
 		require.NoError(t, err)

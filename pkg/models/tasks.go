@@ -1318,6 +1318,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	// We also set this here to prevent it being overwritten later on.
 	// t.Labels = ot.Labels
 
+	// Save the old end date before merging for blocked task adjustment
+	oldEndDate := ot.EndDate
+
 	// For whatever reason, xorm dont detect if done is updated, so we need to update this every time by hand
 	// Which is why we merge the actual task struct with the one we got from the db
 	// The user struct overrides values in the actual one.
@@ -1407,7 +1410,7 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	}
 
 	// Adjust start dates of blocked tasks if this task's end date changed
-	err = adjustBlockedTasksStartDates(s, a, t, ot.EndDate, nil)
+	err = adjustBlockedTasksStartDates(s, a, t, oldEndDate, nil)
 	if err != nil {
 		return err
 	}
