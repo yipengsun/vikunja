@@ -1480,7 +1480,7 @@ func adjustBlockedTasksStartDates(s *xorm.Session, a web.Auth, blockingTask *Tas
 		// Update only the date fields
 		_, err = s.ID(blockedTask.ID).
 			Cols("start_date", "end_date").
-			Update(&blockedTask)
+			Update(blockedTask)
 		if err != nil {
 			log.Errorf("Could not update blocked task %d: %v", blockedTask.ID, err)
 			continue
