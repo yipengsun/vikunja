@@ -532,6 +532,25 @@ func addRelatedTasksToTasks(s *xorm.Session, taskIDs []int64, taskMap map[int64]
 		return
 	}
 
+	// Get projects for related tasks to apply color inheritance
+	var relatedProjectIDs []int64
+	for _, task := range fullRelatedTasks {
+		relatedProjectIDs = append(relatedProjectIDs, task.ProjectID)
+	}
+	relatedProjects, err := GetProjectsMapByIDs(s, relatedProjectIDs)
+	if err != nil {
+		return err
+	}
+
+	// Apply project color inheritance to related tasks
+	for _, task := range fullRelatedTasks {
+		if task.HexColor == "" {
+			if project, hasProject := relatedProjects[task.ProjectID]; hasProject && project.HexColor != "" {
+				task.HexColor = project.HexColor
+			}
+		}
+	}
+
 	taskFavorites, err := getFavorites(s, relatedTaskIDs, a, FavoriteKindTask)
 	if err != nil {
 		return err
