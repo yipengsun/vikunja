@@ -770,6 +770,13 @@ func addMoreInfoToTasks(s *xorm.Session, taskMap map[int64]*Task, a web.Auth, vi
 		// Build the task identifier from the project identifier and task index
 		task.setIdentifier(projects[task.ProjectID])
 
+		// If task has no color, inherit from project
+		if task.HexColor == "" {
+			if project, hasProject := projects[task.ProjectID]; hasProject && project.HexColor != "" {
+				task.HexColor = project.HexColor
+			}
+		}
+
 		task.IsFavorite = taskFavorites[task.ID]
 
 		if reactions != nil {
@@ -918,6 +925,11 @@ func createTask(s *xorm.Session, t *Task, a web.Auth, updateAssignees bool, setB
 	}
 
 	t.HexColor = utils.NormalizeHex(t.HexColor)
+
+	// If task has no color, inherit from project
+	if t.HexColor == "" && p.HexColor != "" {
+		t.HexColor = p.HexColor
+	}
 
 	_, err = s.Insert(t)
 	if err != nil {
