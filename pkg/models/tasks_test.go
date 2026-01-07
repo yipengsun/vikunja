@@ -186,14 +186,14 @@ func TestTask_Create(t *testing.T) {
 		}
 		err := task.Create(s, usr)
 		require.NoError(t, err)
-		assert.Equal(t, "1973ff", task.HexColor)
+		assert.Equal(t, testProject1Color, task.HexColor)
 		err = s.Commit()
 		require.NoError(t, err)
 
 		db.AssertExists(t, "tasks", map[string]interface{}{
 			"id":        task.ID,
 			"title":     "Task with inherited color",
-			"hex_color": "1973ff",
+			"hex_color": testProject1Color,
 		}, false)
 	})
 	t.Run("task color overrides project color", func(t *testing.T) {
@@ -1083,7 +1083,7 @@ func TestTask_ReadOne(t *testing.T) {
 		err := task.ReadOne(s, u)
 		require.NoError(t, err)
 		// Should inherit project color
-		assert.Equal(t, "1973ff", task.HexColor)
+		assert.Equal(t, testProject1Color, task.HexColor)
 	})
 }
 

@@ -36,6 +36,12 @@ var (
 	testUpdatedTime time.Time
 )
 
+// Test constants
+const (
+	// testProject1Color is the hex color used for project 1 in test fixtures
+	testProject1Color = "1973ff"
+)
+
 // GetTables returns all structs which are also a table.
 func GetTables() []interface{} {
 	return []interface{}{
