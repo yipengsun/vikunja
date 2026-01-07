@@ -533,9 +533,13 @@ func addRelatedTasksToTasks(s *xorm.Session, taskIDs []int64, taskMap map[int64]
 	}
 
 	// Get projects for related tasks to apply color inheritance
-	var relatedProjectIDs []int64
+	projectIDSet := make(map[int64]bool)
 	for _, task := range fullRelatedTasks {
-		relatedProjectIDs = append(relatedProjectIDs, task.ProjectID)
+		projectIDSet[task.ProjectID] = true
+	}
+	relatedProjectIDs := make([]int64, 0, len(projectIDSet))
+	for projectID := range projectIDSet {
+		relatedProjectIDs = append(relatedProjectIDs, projectID)
 	}
 	relatedProjects, err := GetProjectsMapByIDs(s, relatedProjectIDs)
 	if err != nil {
