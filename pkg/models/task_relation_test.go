@@ -272,6 +272,254 @@ func TestTaskRelation_Create(t *testing.T) {
 		require.Error(t, err)
 		assert.True(t, IsErrTaskRelationCycle(err))
 	})
+	t.Run("cycle with one follows relation", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create: Task 1 follows Task 2
+		rel1 := TaskRelation{
+			TaskID:       1,
+			OtherTaskID:  2,
+			RelationKind: RelationKindFollows,
+		}
+		err := rel1.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Try to create: Task 2 follows Task 1 (would create a cycle)
+		rel2 := TaskRelation{
+			TaskID:       2,
+			OtherTaskID:  1,
+			RelationKind: RelationKindFollows,
+		}
+		err = rel2.Create(s, &user.User{ID: 1})
+		require.Error(t, err)
+		assert.True(t, IsErrTaskRelationCycle(err))
+	})
+	t.Run("cycle with multiple follows relations", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create chain: 1 follows 2 follows 3 follows 4
+		rel1 := TaskRelation{
+			TaskID:       1,
+			OtherTaskID:  2,
+			RelationKind: RelationKindFollows,
+		}
+		err := rel1.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+		rel2 := TaskRelation{
+			TaskID:       2,
+			OtherTaskID:  3,
+			RelationKind: RelationKindFollows,
+		}
+		err = rel2.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+		rel3 := TaskRelation{
+			TaskID:       3,
+			OtherTaskID:  4,
+			RelationKind: RelationKindFollows,
+		}
+		err = rel3.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Try to create: 4 follows 2 (would create a cycle)
+		rel4 := TaskRelation{
+			TaskID:       4,
+			OtherTaskID:  2,
+			RelationKind: RelationKindFollows,
+		}
+		err = rel4.Create(s, &user.User{ID: 1})
+		require.Error(t, err)
+		assert.True(t, IsErrTaskRelationCycle(err))
+	})
+	t.Run("cycle with one precedes relation", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create: Task 1 precedes Task 2
+		rel1 := TaskRelation{
+			TaskID:       1,
+			OtherTaskID:  2,
+			RelationKind: RelationKindPreceeds,
+		}
+		err := rel1.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Try to create: Task 2 precedes Task 1 (would create a cycle)
+		rel2 := TaskRelation{
+			TaskID:       2,
+			OtherTaskID:  1,
+			RelationKind: RelationKindPreceeds,
+		}
+		err = rel2.Create(s, &user.User{ID: 1})
+		require.Error(t, err)
+		assert.True(t, IsErrTaskRelationCycle(err))
+	})
+	t.Run("cycle with multiple precedes relations", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create chain: 1 precedes 2 precedes 3 precedes 4
+		rel1 := TaskRelation{
+			TaskID:       1,
+			OtherTaskID:  2,
+			RelationKind: RelationKindPreceeds,
+		}
+		err := rel1.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+		rel2 := TaskRelation{
+			TaskID:       2,
+			OtherTaskID:  3,
+			RelationKind: RelationKindPreceeds,
+		}
+		err = rel2.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+		rel3 := TaskRelation{
+			TaskID:       3,
+			OtherTaskID:  4,
+			RelationKind: RelationKindPreceeds,
+		}
+		err = rel3.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Try to create: 4 precedes 1 (would create a cycle back to the start)
+		rel4 := TaskRelation{
+			TaskID:       4,
+			OtherTaskID:  1,
+			RelationKind: RelationKindPreceeds,
+		}
+		err = rel4.Create(s, &user.User{ID: 1})
+		require.Error(t, err)
+		assert.True(t, IsErrTaskRelationCycle(err))
+	})
+	t.Run("cycle with one blocking relation", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create: Task 1 is blocking Task 2
+		rel1 := TaskRelation{
+			TaskID:       1,
+			OtherTaskID:  2,
+			RelationKind: RelationKindBlocking,
+		}
+		err := rel1.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Try to create: Task 2 is blocking Task 1 (would create a cycle)
+		rel2 := TaskRelation{
+			TaskID:       2,
+			OtherTaskID:  1,
+			RelationKind: RelationKindBlocking,
+		}
+		err = rel2.Create(s, &user.User{ID: 1})
+		require.Error(t, err)
+		assert.True(t, IsErrTaskRelationCycle(err))
+	})
+	t.Run("cycle with multiple blocking relations", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create chain: 1 blocking 2 blocking 3 blocking 4
+		rel1 := TaskRelation{
+			TaskID:       1,
+			OtherTaskID:  2,
+			RelationKind: RelationKindBlocking,
+		}
+		err := rel1.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+		rel2 := TaskRelation{
+			TaskID:       2,
+			OtherTaskID:  3,
+			RelationKind: RelationKindBlocking,
+		}
+		err = rel2.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+		rel3 := TaskRelation{
+			TaskID:       3,
+			OtherTaskID:  4,
+			RelationKind: RelationKindBlocking,
+		}
+		err = rel3.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Try to create: 4 blocking 2 (would create a cycle)
+		rel4 := TaskRelation{
+			TaskID:       4,
+			OtherTaskID:  2,
+			RelationKind: RelationKindBlocking,
+		}
+		err = rel4.Create(s, &user.User{ID: 1})
+		require.Error(t, err)
+		assert.True(t, IsErrTaskRelationCycle(err))
+	})
+	t.Run("cycle with one blocked relation", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create: Task 1 is blocked by Task 2
+		rel1 := TaskRelation{
+			TaskID:       1,
+			OtherTaskID:  2,
+			RelationKind: RelationKindBlocked,
+		}
+		err := rel1.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Try to create: Task 2 is blocked by Task 1 (would create a cycle)
+		rel2 := TaskRelation{
+			TaskID:       2,
+			OtherTaskID:  1,
+			RelationKind: RelationKindBlocked,
+		}
+		err = rel2.Create(s, &user.User{ID: 1})
+		require.Error(t, err)
+		assert.True(t, IsErrTaskRelationCycle(err))
+	})
+	t.Run("cycle with multiple blocked relations", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Create chain: 1 blocked by 2 blocked by 3 blocked by 4
+		rel1 := TaskRelation{
+			TaskID:       1,
+			OtherTaskID:  2,
+			RelationKind: RelationKindBlocked,
+		}
+		err := rel1.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+		rel2 := TaskRelation{
+			TaskID:       2,
+			OtherTaskID:  3,
+			RelationKind: RelationKindBlocked,
+		}
+		err = rel2.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+		rel3 := TaskRelation{
+			TaskID:       3,
+			OtherTaskID:  4,
+			RelationKind: RelationKindBlocked,
+		}
+		err = rel3.Create(s, &user.User{ID: 1})
+		require.NoError(t, err)
+
+		// Try to create: 4 blocked by 1 (would create a cycle back to the start)
+		rel4 := TaskRelation{
+			TaskID:       4,
+			OtherTaskID:  1,
+			RelationKind: RelationKindBlocked,
+		}
+		err = rel4.Create(s, &user.User{ID: 1})
+		require.Error(t, err)
+		assert.True(t, IsErrTaskRelationCycle(err))
+	})
 }
 
 func TestTaskRelation_Delete(t *testing.T) {
