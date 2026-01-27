@@ -3,6 +3,7 @@
   title: Test1
   description: Lorem Ipsum
   identifier: test1
+  hex_color: 1973ff
   owner_id: 1
   position: 3
   updated: 2018-12-02 15:13:12

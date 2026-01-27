@@ -174,6 +174,73 @@ func TestTask_Create(t *testing.T) {
 			"bucket_id": 22, // default bucket of project 6 but with a position of 2
 		}, false)
 	})
+	t.Run("color inheritance from project", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Project 1 has hex_color: 1973ff
+		task := &Task{
+			Title:     "Task with inherited color",
+			ProjectID: 1,
+		}
+		err := task.Create(s, usr)
+		require.NoError(t, err)
+		assert.Equal(t, testProject1Color, task.HexColor)
+		err = s.Commit()
+		require.NoError(t, err)
+
+		db.AssertExists(t, "tasks", map[string]interface{}{
+			"id":        task.ID,
+			"title":     "Task with inherited color",
+			"hex_color": testProject1Color,
+		}, false)
+	})
+	t.Run("task color overrides project color", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Project 1 has hex_color: 1973ff, but task has its own color
+		task := &Task{
+			Title:     "Task with own color",
+			ProjectID: 1,
+			HexColor:  "ff0000",
+		}
+		err := task.Create(s, usr)
+		require.NoError(t, err)
+		assert.Equal(t, "ff0000", task.HexColor)
+		err = s.Commit()
+		require.NoError(t, err)
+
+		db.AssertExists(t, "tasks", map[string]interface{}{
+			"id":        task.ID,
+			"title":     "Task with own color",
+			"hex_color": "ff0000",
+		}, false)
+	})
+	t.Run("no color when project has no color", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Project 2 has no hex_color
+		task := &Task{
+			Title:     "Task without color",
+			ProjectID: 2,
+		}
+		err := task.Create(s, usr)
+		require.NoError(t, err)
+		assert.Equal(t, "", task.HexColor)
+		err = s.Commit()
+		require.NoError(t, err)
+
+		db.AssertExists(t, "tasks", map[string]interface{}{
+			"id":        task.ID,
+			"title":     "Task without color",
+			"hex_color": "",
+		}, false)
+	})
 }
 
 func TestTask_Update(t *testing.T) {
@@ -1004,6 +1071,19 @@ func TestTask_ReadOne(t *testing.T) {
 		err := task.ReadOne(s, &user.User{ID: 2})
 		require.NoError(t, err)
 		assert.False(t, task.IsFavorite)
+	})
+	t.Run("task inherits color from project when read", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Task 1 is in project 1, which has hex_color: 1973ff
+		// Task 1 itself has no color in the fixtures
+		task := &Task{ID: 1}
+		err := task.ReadOne(s, u)
+		require.NoError(t, err)
+		// Should inherit project color
+		assert.Equal(t, testProject1Color, task.HexColor)
 	})
 }
 

@@ -532,6 +532,29 @@ func addRelatedTasksToTasks(s *xorm.Session, taskIDs []int64, taskMap map[int64]
 		return
 	}
 
+	// Get projects for related tasks to apply color inheritance
+	projectIDSet := make(map[int64]bool)
+	for _, task := range fullRelatedTasks {
+		projectIDSet[task.ProjectID] = true
+	}
+	relatedProjectIDs := make([]int64, 0, len(projectIDSet))
+	for projectID := range projectIDSet {
+		relatedProjectIDs = append(relatedProjectIDs, projectID)
+	}
+	relatedProjects, err := GetProjectsMapByIDs(s, relatedProjectIDs)
+	if err != nil {
+		return err
+	}
+
+	// Apply project color inheritance to related tasks
+	for _, task := range fullRelatedTasks {
+		if task.HexColor == "" {
+			if project, hasProject := relatedProjects[task.ProjectID]; hasProject && project.HexColor != "" {
+				task.HexColor = project.HexColor
+			}
+		}
+	}
+
 	taskFavorites, err := getFavorites(s, relatedTaskIDs, a, FavoriteKindTask)
 	if err != nil {
 		return err
@@ -770,6 +793,13 @@ func addMoreInfoToTasks(s *xorm.Session, taskMap map[int64]*Task, a web.Auth, vi
 		// Build the task identifier from the project identifier and task index
 		task.setIdentifier(projects[task.ProjectID])
 
+		// If task has no color, inherit from project
+		if task.HexColor == "" {
+			if project, hasProject := projects[task.ProjectID]; hasProject && project.HexColor != "" {
+				task.HexColor = project.HexColor
+			}
+		}
+
 		task.IsFavorite = taskFavorites[task.ID]
 
 		if reactions != nil {
@@ -918,6 +948,11 @@ func createTask(s *xorm.Session, t *Task, a web.Auth, updateAssignees bool, setB
 	}
 
 	t.HexColor = utils.NormalizeHex(t.HexColor)
+
+	// If task has no color, inherit from project
+	if t.HexColor == "" && p.HexColor != "" {
+		t.HexColor = p.HexColor
+	}
 
 	_, err = s.Insert(t)
 	if err != nil {
